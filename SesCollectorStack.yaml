@@ -29,6 +29,9 @@ Outputs:
   SesEventTableName:
     Value: !Ref SesEventTable
 
+  ApiUrl:
+    Value: !Sub 'https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
+
 Resources:
   SesEventTable:
     Type: AWS::DynamoDB::Table
@@ -77,11 +80,12 @@ Resources:
                 Action:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: !Sub
-                  - arn:aws:logs:${Region}:${AccountId}:log-group:/aws/lambda/${LogGroupName}:*
-                  - Region: !Ref AWS::Region
-                    AccountId: !Ref AWS::AccountId
-                    LogGroupName: !Ref CollectorLambdaFunction
+                # Resource: !Sub
+                #   - arn:aws:logs:${Region}:${AccountId}:log-group:/aws/lambda/${LogGroupName}:*
+                #   - Region: !Ref AWS::Region
+                #     AccountId: !Ref AWS::AccountId
+                #     LogGroupName: !Ref CollectorLambdaFunction
+                Resource: '*' #TODO: Figure out how to restrict this to the specific group w/o a circ dependency
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
@@ -134,6 +138,12 @@ Resources:
         S3Bucket: sescollector-dev-deploymentbucketstack-hq5-bucket-11xpzx2fu8skr
         S3Key: SesCollector-Collector-2020-05-09-08-15.zip
 
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors: "'www.mattmillican.com'"
+
   GetEventsApi:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -150,11 +160,13 @@ Resources:
         Variables:
           SesEventTableName: !Ref SesEventTable
       Events:
-        PutResource:
+        GetList:
           Type: Api
           Properties:
             Path: /
             Method: GET
+            RestApiId:
+              Ref: ApiGatewayApi  
 
   DeploymentBucketStack:
     Type: AWS::CloudFormation::Stack
