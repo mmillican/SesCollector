@@ -146,14 +146,14 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: Prod
-      Cors: "'www.mattmillican.com'"
+      Cors: "'http://localhost:8080'"
 
   GetEventsApi:
     Type: 'AWS::Serverless::Function'
     Properties:
       Handler: 'SesCollector.Api::SesCollector.Api.Functions::GetSesEventsAsync'
       Runtime: dotnetcore3.1
-      CodeUri: 's3://sescollector-dev-deploymentbucketstack-hq5-bucket-11xpzx2fu8skr/SesCollector-Api-2020-05-08-21-17.zip'
+      CodeUri: 's3://sescollector-dev-deploymentbucketstack-hq5-bucket-11xpzx2fu8skr/SesCollector-Api-2020-05-13-23-50.zip'
       Description: Function to get a list of events
       MemorySize: 256
       Timeout: 30
@@ -167,7 +167,7 @@ Resources:
         GetList:
           Type: Api
           Properties:
-            Path: /
+            Path: /events
             Method: GET
             RestApiId:
               Ref: ApiGatewayApi  

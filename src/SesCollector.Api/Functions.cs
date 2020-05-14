@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -88,7 +88,11 @@ namespace SesCollector.Api
             {
                 StatusCode = (int)HttpStatusCode.OK,
                 Body = JsonConvert.SerializeObject(events),
-                Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
+                Headers = new Dictionary<string, string> 
+                { 
+                    { "Content-Type", "application/json" },
+                    { "Access-Control-Allow-Origin", "http://localhost:8080" } // TODO: This needs to be passed in as an env variable
+                }
             };
 
             return response;
