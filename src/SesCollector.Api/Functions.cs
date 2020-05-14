@@ -77,6 +77,7 @@ namespace SesCollector.Api
         public async Task<APIGatewayProxyResponse> GetSesEventsAsync(APIGatewayProxyRequest request, ILambdaContext context)
         {
             context.Logger.LogLine("Getting SesEvents");
+            var allowedCorsOrigin = Environment.GetEnvironmentVariable("AllowedCorsOrigin");
             
             var events = await _dbContext.GetAsync<SesEvent>();
 
@@ -91,7 +92,7 @@ namespace SesCollector.Api
                 Headers = new Dictionary<string, string> 
                 { 
                     { "Content-Type", "application/json" },
-                    { "Access-Control-Allow-Origin", "http://localhost:8080" } // TODO: This needs to be passed in as an env variable
+                    { "Access-Control-Allow-Origin", allowedCorsOrigin }
                 }
             };
 

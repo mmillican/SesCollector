@@ -21,6 +21,11 @@ Parameters:
     Default: '1'
     MinValue: 1
 
+  AllowedCorsOrigin:
+    Type: String
+    Description: The CORS origin allowed to access the API
+    Default: ''
+
 Conditions:
   DoCreateDeploymentBucket:
     !Equals [ !Ref CreateDeploymentBucket, 'true' ]
@@ -146,14 +151,14 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: Prod
-      Cors: "'http://localhost:8080'"
+      Cors: !Sub "'${AllowedCorsOrigin}'"
 
   GetEventsApi:
     Type: 'AWS::Serverless::Function'
     Properties:
       Handler: 'SesCollector.Api::SesCollector.Api.Functions::GetSesEventsAsync'
       Runtime: dotnetcore3.1
-      CodeUri: 's3://sescollector-dev-deploymentbucketstack-hq5-bucket-11xpzx2fu8skr/SesCollector-Api-2020-05-13-23-50.zip'
+      CodeUri: 's3://sescollector-dev-deploymentbucketstack-hq5-bucket-11xpzx2fu8skr/SesCollector-Api-2020-05-14-00-31.zip'
       Description: Function to get a list of events
       MemorySize: 256
       Timeout: 30
@@ -163,6 +168,7 @@ Resources:
       Environment:
         Variables:
           SesEventTableName: !Ref SesEventTable
+          AllowedCorsOrigin: !Ref AllowedCorsOrigin
       Events:
         GetList:
           Type: Api
