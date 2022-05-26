@@ -19,6 +19,8 @@ namespace SesCollector.Collector
 {
     public class Function
     {
+        private readonly string [] RelevantNotificationTypes = new[] { "Bounce", "Complaint", "Delivery" };
+
         private readonly IDynamoContext _dbContext;
 
         /// <summary>
@@ -52,12 +54,24 @@ namespace SesCollector.Collector
         public SesEvent ParseRecord(SNSEvent.SNSRecord record, ILambdaContext context)
         {
             context.Logger.LogLine($"Parsing record for {record.Sns.Type} from source {record.EventSource}.");
+            context.Logger.LogLine($"--> Message: {record.Sns.Message}");
             
             var notification = JsonSerializer.Deserialize<SesNotification>(record.Sns.Message, new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 DictionaryKeyPolicy = JsonNamingPolicy.CamelCase
             });
+
+            if (notification is null || !RelevantNotificationTypes.Contains(notification.NotificationType))            
+            {
+                return null;
+            }
+
+            if (notification.Mail is null)
+            {
+                context.Logger.LogLine("--> Mail property not found in notification message. Cannot process record.");
+                return null;
+            }
 
             var evt = new SesEvent
             {
@@ -105,15 +119,17 @@ namespace SesCollector.Collector
             try
             { 
                 var sesEvent = ParseRecord(record, context);
-                await SaveEventAsync(sesEvent);
-                context.Logger.LogLine($"Processed record for {sesEvent.EventType}");
+                if (sesEvent is not null)
+                {
+                    await SaveEventAsync(sesEvent);
+                    context.Logger.LogLine($"Processed record for {sesEvent.EventType}");
+                }
             }
             catch(Exception ex)
             {
-                context.Logger.LogLine($"Error: {ex.Message}");
+                context.Logger.LogError($"Error: {ex.Message}");
             }
 
-            // TODO: Do interesting work based on the new message
             await Task.CompletedTask;
         }
 
