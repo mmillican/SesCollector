@@ -4,38 +4,34 @@ Transform: 'AWS::Serverless-2016-10-31'
 Description: Creates a stack for collection SES Notifications via a Lambda function and putting into DDB
 
 Parameters:
-  CreateDeploymentBucket:
+  # CreateDeploymentBucket:
+  #   Type: String
+  #   Default: 'false'
+  #   Description: Whether or not to create an S3 for deploying code
+  #   AllowedValues: ['true', 'false']
+
+  CodeBucketName:
     Type: String
-    Default: 'false'
-    Description: Whether or not to create an S3 for deploying code
-    AllowedValues: ['true', 'false']
+    Description: The name of the bucket where the code artifacts are stored
 
-  TableReadCapacity:
-    Type: Number
-    Description: Read capacity for the DynamoDB table.
-    Default: '1'
-    MinValue: 1
-  TableWriteCapacity:
-    Type: Number
-    Description: Write capacity for the DynamoDB table.
-    Default: '1'
-    MinValue: 1
-
-  AllowedCorsOrigin:
+  CollectorArtifactKey:
     Type: String
-    Description: The CORS origin allowed to access the API
-    Default: ''
+    Description: The key/path for the collector artifact
+    
+  ApiArtifactKey:
+    Type: String
+    Description: The key/path for the API artifact
 
-Conditions:
-  DoCreateDeploymentBucket:
-    !Equals [ !Ref CreateDeploymentBucket, 'true' ]
+# Conditions:
+#   DoCreateDeploymentBucket:
+#     !Equals [ !Ref CreateDeploymentBucket, 'true' ]
 
 Outputs:
   SesEventTableName:
     Value: !Ref SesEventTable
 
-  ApiUrl:
-    Value: !Sub 'https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
+  # ApiUrl:
+  #   Value: !Sub 'https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
 
 Resources:
   SesEventTable:
@@ -51,9 +47,7 @@ Resources:
           KeyType: HASH
         # - AttributeName: Timestamp
         #   KeyType: RANGE
-      ProvisionedThroughput:
-        ReadCapacityUnits: !Ref TableReadCapacity
-        WriteCapacityUnits: !Ref TableWriteCapacity
+      BillingMode: PAY_PER_REQUEST
 
   LambdaRole:
     Type: AWS::IAM::Role
@@ -140,49 +134,65 @@ Resources:
         Variables:
           SesEventTableName: !Ref SesEventTable
       Handler: 'SesCollector.Collector::SesCollector.Collector.Function::FunctionHandler'
-      Runtime: dotnetcore3.1
+      Runtime: dotnet6
       Role: !GetAtt LambdaRole.Arn
       Timeout: 300
       Code:
-        S3Bucket: sescollector-dev-deploymentbucketstack-hq5-bucket-11xpzx2fu8skr
-        S3Key: SesCollector-Collector-2020-05-09-08-15.zip
+        S3Bucket: !Ref CodeBucketName
+        S3Key: !Ref CollectorArtifactKey
 
-  ApiGatewayApi:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: Prod
-      Cors: !Sub "'${AllowedCorsOrigin}'"
+  # ApiLambdaLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: !Sub '/aws/lambda/${GetEventsApi}'
+  #     RetentionInDays: 14
 
-  GetEventsApi:
-    Type: 'AWS::Serverless::Function'
-    Properties:
-      Handler: 'SesCollector.Api::SesCollector.Api.Functions::GetSesEventsAsync'
-      Runtime: dotnetcore3.1
-      CodeUri: 's3://sescollector-dev-deploymentbucketstack-hq5-bucket-11xpzx2fu8skr/SesCollector-Api-2020-05-14-00-31.zip'
-      Description: Function to get a list of events
-      MemorySize: 256
-      Timeout: 30
-      Role: null
-      Policies:
-        - AWSLambdaFullAccess
-      Environment:
-        Variables:
-          SesEventTableName: !Ref SesEventTable
-          AllowedCorsOrigin: !Ref AllowedCorsOrigin
-      Events:
-        GetList:
-          Type: Api
-          Properties:
-            Path: /events
-            Method: GET
-            RestApiId:
-              Ref: ApiGatewayApi  
+  # ApiLambdaRoleLogPolicy:
+  #   Type: AWS::IAM::Policy
+  #   Properties:
+  #     PolicyName: LambdaLoggingPolicy
+  #     PolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Action:
+  #             - logs:CreateLogStream
+  #             - logs:PutLogEvents
+  #           Resource: !GetAtt ApiLambdaLogGroup.Arn
+  #     Roles:
+  #       - !Ref LambdaRole
 
-  DeploymentBucketStack:
-    Type: AWS::CloudFormation::Stack
-    Condition: DoCreateDeploymentBucket
-    Properties:
-      Parameters:
-        AllowPublicRead: true
-        CorsDomains: ''
-      TemplateURL: https://s3.amazonaws.com/digops-stacks/version/19.9.0/s3-bucket.template
+  # ApiGatewayApi:
+  #   Type: AWS::Serverless::Api
+  #   Properties:
+  #     StageName: Prod
+  #     # Cors: !Sub "'${AllowedCorsOrigin}'"
+
+  # GetEventsApi:
+  #   Type: 'AWS::Serverless::Function'
+  #   Properties:
+  #     Handler: 'SesCollector.Api::SesCollector.Api.Functions::GetSesEventsAsync'
+  #     Runtime: dotnet6
+  #     CodeUri: 
+  #       Bucket: !Ref CodeBucketName
+  #       Key: !Ref ApiArtifactKey
+  #     Description: Function to get a list of events
+  #     MemorySize: 128
+  #     Timeout: 30
+  #     Policies:
+  #       - AWSLambdaFullAccess
+  #     Environment:
+  #       Variables:
+  #         SesEventTableName: !Ref SesEventTable
+  #         # AllowedCorsOrigin: !Ref AllowedCorsOrigin
+  #     Events:
+  #       GetList:
+  #         Type: Api
+  #         Properties:
+  #           Path: /events
+  #           Method: GET
+  #           RestApiId:
+  #             Ref: ApiGatewayApi
+  #           RequestParameters:
+  #             - method.request.querystring.fromEmail
+  #             - method.request.querystring.toEmail

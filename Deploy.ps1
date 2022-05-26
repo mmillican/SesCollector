@@ -38,7 +38,7 @@ Write-Host "    > Artifacts compressed" -ForegroundColor Cyan
 
 Write-Host "Uploading artifacts to S3 bucket" -ForegroundColor Yellow
 
-aws s3 cp $apiDestination s3://$CodeS3Bucket/$apiFilename
-aws s3 cp $collectorDestination s3://$CodeS3Bucket/$collectorFilename
+aws s3 cp $apiDestination s3://$CodeS3Bucket/SesCollector/$apiFilename
+aws s3 cp $collectorDestination s3://$CodeS3Bucket/SesCollector/$collectorFilename
 
 Write-Host "    > Artifacts uploaded to S3." -ForegroundColor Cyan

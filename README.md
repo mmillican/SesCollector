@@ -16,3 +16,5 @@ $ aws cloudformation update-stack --stack-name SesCollector --template-body file
 - Write unit tests for additional event types
 - Create a frontend UI to consume the API and provide way to view/search events
 - Possibly add a daily digest email?
+- [Add alarms](https://gist.github.com/tomislacker/cb36f6a2b699e4707840066cd9433ecb)
+- Add option to frontend to get config from a file instead of ENV variables

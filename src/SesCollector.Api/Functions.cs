@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -11,9 +11,10 @@ using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
 
-using Newtonsoft.Json;
 using SesCollector.Shared.Models;
 using SesCollector.Shared.Services;
+using Amazon.DynamoDBv2.DocumentModel;
+using System.Text.Json;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
@@ -22,12 +23,9 @@ namespace SesCollector.Api
 {
     public class Functions
     {
-        // This const is the name of the environment variable that the serverless.template will use to set
-        // the name of the DynamoDB table used to store SesEvent posts.
         const string TABLENAME_ENVIRONMENT_VARIABLE_LOOKUP = "SesEventTableName";
 
         public const string ID_QUERY_STRING_NAME = "Id";
-        // IDynamoDBContext DDBContext { get; set; }
 
         private readonly IDynamoContext _dbContext;
 
@@ -36,17 +34,6 @@ namespace SesCollector.Api
         /// </summary>
         public Functions()
         {
-            // Check to see if a table name was passed in through environment variables and if so 
-            // add the table mapping.
-            // var tableName = System.Environment.GetEnvironmentVariable(TABLENAME_ENVIRONMENT_VARIABLE_LOOKUP);
-            
-            // if(!string.IsNullOrEmpty(tableName))
-            // {
-            //     AWSConfigsDynamoDB.Context.TypeMappings[typeof(SesEvent)] = new Amazon.Util.TypeMapping(typeof(SesEvent), tableName);
-            // }
-
-            // var config = new DynamoDBContextConfig { Conversion = DynamoDBEntryConversion.V2 };
-            // this.DDBContext = new DynamoDBContext(new AmazonDynamoDBClient(), config);
             
             _dbContext = new DynamoDbContext(new AmazonDynamoDBClient());
         }
@@ -59,14 +46,6 @@ namespace SesCollector.Api
         public Functions(IAmazonDynamoDB ddbClient, string tableName)
         {
             _dbContext = new DynamoDbContext(ddbClient);
-
-            // if (!string.IsNullOrEmpty(tableName))
-            // {
-            //     AWSConfigsDynamoDB.Context.TypeMappings[typeof(SesEvent)] = new Amazon.Util.TypeMapping(typeof(SesEvent), tableName);
-            // }
-
-            // var config = new DynamoDBContextConfig { Conversion = DynamoDBEntryConversion.V2 };
-            // this.DDBContext = new DynamoDBContext(ddbClient, config);
         }
 
         /// <summary>
@@ -78,17 +57,50 @@ namespace SesCollector.Api
         {
             context.Logger.LogLine("Getting SesEvents");
             var allowedCorsOrigin = Environment.GetEnvironmentVariable("AllowedCorsOrigin");
-            
-            var events = await _dbContext.GetAsync<SesEvent>();
 
-            // var search = this.DDBContext.ScanAsync<SesEvent>(null);
-            // var page = await search.GetNextSetAsync();
+            var queryConditions = new List<ScanCondition>();
+
+            string fromEmail = null;
+            if (request?.QueryStringParameters?.TryGetValue("fromEmail", out fromEmail) ?? false)
+            {
+                if (!string.IsNullOrEmpty(fromEmail))
+                {
+                    queryConditions.Add(new ScanCondition(nameof(SesEvent.FromAddress), ScanOperator.Equal, fromEmail));
+                }
+            }
+            string toEmail = null;
+            if (request?.QueryStringParameters?.TryGetValue("toEmail", out toEmail) ?? false)
+            {
+                if (!string.IsNullOrEmpty(toEmail))
+                {
+                    queryConditions.Add(new ScanCondition(nameof(SesEvent.Recipients), ScanOperator.Contains, toEmail));
+                }
+            }
+
+            string queryFromDate = null, queryToDate = null;
+            if (request?.QueryStringParameters?.TryGetValue("fromDate", out queryFromDate) ?? false)
+            {
+                if (DateTime.TryParse(queryFromDate, out var fromDate))
+                {
+                    queryConditions.Add(new ScanCondition(nameof(SesEvent.Timestamp), ScanOperator.GreaterThanOrEqual, fromDate));
+                }
+            }
+            if (request?.QueryStringParameters?.TryGetValue("toDate", out queryToDate) ?? false)
+            {
+                if (DateTime.TryParse(queryToDate, out var toDate))
+                {
+                    queryConditions.Add(new ScanCondition(nameof(SesEvent.Timestamp), ScanOperator.LessThanOrEqual, toDate));
+                }
+            }
+
+            var events = await _dbContext.GetAsync<SesEvent>(queryConditions);
+
             context.Logger.LogLine($"Found {events.Count()} SesEvents");
 
             var response = new APIGatewayProxyResponse
             {
                 StatusCode = (int)HttpStatusCode.OK,
-                Body = JsonConvert.SerializeObject(events),
+                Body = JsonSerializer.Serialize(events),
                 Headers = new Dictionary<string, string> 
                 { 
                     { "Content-Type", "application/json" },
